@@ -16,37 +16,42 @@ export default function LandingPage() {
     <div className="flex flex-col min-h-screen">
       {/* Top section with light background */}
       <div className="bg-gray-200">
-        {/* Header */}
-        <header className="w-full py-4 px-6 flex justify-between items-center max-w-6xl mx-auto">
-          <Link href="/" className="text-xl font-bold text-[#0f1758]">
-            Upcat
-          </Link>
-          <button
-            onClick={handleRedirectToApp}
-            className="bg-[#dbff26] text-black px-4 py-2 rounded-full text-sm font-medium hover:bg-[#c7e822]"
-          >
-            Probar Upcat
-          </button>
-        </header>
-
-        {/* Placeholder image section */}
-        <div className="w-full py-16 px-6 flex justify-center">
-          <div className="w-full max-w-md aspect-video bg-gray-300 rounded-lg flex items-center justify-center">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="64"
-              height="64"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+        {/* Header - now fixed with white bottom border and centered with max-width */}
+        <div className="fixed top-0 left-0 right-0 w-full bg-gray-200 z-50 border-b border-white flex justify-center">
+          <header className="w-full max-w-6xl py-4 px-6 flex justify-between items-center">
+            <Link href="/" className="text-xl font-bold text-[#0f1758]">
+              Upcat
+            </Link>
+            <button
+              onClick={handleRedirectToApp}
+              className="bg-[#dbff26] text-black px-4 py-2 rounded-full text-sm font-medium hover:bg-[#c7e822]"
             >
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-              <circle cx="8.5" cy="8.5" r="1.5" />
-              <polyline points="21 15 16 10 5 21" />
-            </svg>
+              Probar Upcat
+            </button>
+          </header>
+        </div>
+
+        {/* Add padding to account for the fixed header */}
+        <div className="pt-16 bg-gray-200">
+          {/* Placeholder image section */}
+          <div className="w-full py-16 px-6 flex justify-center">
+            <div className="w-full max-w-md aspect-video bg-gray-300 rounded-lg flex items-center justify-center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="64"
+                height="64"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+            </div>
           </div>
         </div>
       </div>
@@ -60,7 +65,7 @@ export default function LandingPage() {
               Restaura y mejora tus fotos con IA,
               <span className="relative inline-block">
                 <span className="whitespace-nowrap"> en un solo clic</span>
-                <span className="absolute bottom-0 left-0 w-[110%] h-1.5 bg-[#dbff26]" style={{ right: "-10%" }}></span>
+                <span className="absolute bottom-0 left-0 w-full h-1 bg-[#dbff26]"></span>
               </span>
             </h1>
           </div>
@@ -163,14 +168,14 @@ export default function LandingPage() {
         </div>
 
         {/* Business Possibilities Section - Updated with selection functionality */}
-        <div className="max-w-6xl mx-auto px-6 py-16">
+        <div className="max-w-6xl mx-auto px-6 py-10">
           <h2 className="text-3xl font-bold mb-2 text-center">Posibilidades infinitas de negocio</h2>
           <p className="text-center text-gray-300 mb-8 max-w-2xl mx-auto">
             Eleva la calidad de tus fotos y crea contenido profesional de primer nivel para cualquier necesidad
             comercial.
           </p>
 
-          <div className="flex justify-center mb-12">
+          <div className="flex justify-center mb-8">
             <button
               onClick={handleRedirectToApp}
               className="bg-[#dbff26] text-black px-6 py-3 rounded-full font-medium hover:bg-[#c7e822]"
@@ -179,7 +184,7 @@ export default function LandingPage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             {/* Ecommerce Card */}
             <button
               onClick={() => setSelectedOption("ecommerce")}
@@ -252,7 +257,7 @@ export default function LandingPage() {
         </div>
 
         {/* CTA Section - Updated to match the design */}
-        <div className="px-6 py-8 mb-8">
+        <div className="px-6 py-4 mb-4">
           <div className="max-w-6xl mx-auto bg-gray-600 rounded-3xl py-16 px-6">
             <div className="max-w-md mx-auto text-center">
               <h2 className="text-3xl font-bold text-white mb-4">Prueba Upcat ahora</h2>
@@ -272,7 +277,7 @@ export default function LandingPage() {
         </div>
 
         {/* Footer - Updated to match the design */}
-        <footer className="w-full py-8 px-6">
+        <footer className="w-full py-4 px-6">
           <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center mb-4 md:mb-0">
               <Link href="/" className="text-xl font-bold">
