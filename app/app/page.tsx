@@ -1,8 +1,10 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Plus, Download, RefreshCw, Upload, X, ArrowLeft } from "lucide-react"
+import { Plus, Download, RefreshCw, Upload, X, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { toast } from "@/components/ui/use-toast"
 import { ToastAction } from "@/components/ui/toast"
@@ -31,11 +33,17 @@ export default function AppPage() {
   const [showSizeError, setShowSizeError] = useState(false)
   const [hasUploadedBefore, setHasUploadedBefore] = useState(false)
   const [showErrorMessage, setShowErrorMessage] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [startX, setStartX] = useState(0)
+  const [scrollLeft, setScrollLeft] = useState(0)
+  const [forceUpdate, setForceUpdate] = useState(0)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const changeImageInputRef = useRef<HTMLInputElement>(null)
   const thumbnailsContainerRef = useRef<HTMLDivElement>(null)
   const activeThumbRef = useRef<HTMLButtonElement>(null)
+  const scrollbarRef = useRef<HTMLDivElement>(null)
+  const thumbRef = useRef<HTMLDivElement>(null)
 
   // Get the active image
   const activeImage = uploadedImages.find((img) => img.id === activeImageId) || null
@@ -49,6 +57,13 @@ export default function AppPage() {
       // Calculate position to center the thumbnail
       const scrollLeft = thumb.offsetLeft - container.clientWidth / 2 + thumb.clientWidth / 2
       container.scrollTo({ left: scrollLeft, behavior: "smooth" })
+
+      // Update the scrollbar thumb position after scrolling
+      setTimeout(() => {
+        if (thumbRef.current) {
+          thumbRef.current.style.transform = `translateX(${getThumbPosition()})`
+        }
+      }, 300) // Wait for the scroll animation to complete
     }
   }, [uploadedImages, activeImageId])
 
@@ -63,6 +78,16 @@ export default function AppPage() {
       return
     }
     fileInputRef.current?.click()
+  }
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (thumbnailsContainerRef.current) {
+      e.preventDefault()
+      thumbnailsContainerRef.current.scrollBy({
+        left: e.deltaY > 0 ? 100 : -100,
+        behavior: "smooth",
+      })
+    }
   }
 
   // Check image dimensions
@@ -311,6 +336,200 @@ export default function AppPage() {
     }
   }
 
+  // Calculate scrollbar thumb width and position
+  const getThumbWidth = () => {
+    if (!thumbnailsContainerRef.current || !scrollbarRef.current) return "20%"
+    const container = thumbnailsContainerRef.current
+    const scrollbar = scrollbarRef.current
+    const ratio = container.clientWidth / container.scrollWidth
+    return `${Math.max(10, ratio * 100)}%`
+  }
+
+  const getThumbPosition = () => {
+    if (!thumbnailsContainerRef.current || !scrollbarRef.current) return "0px"
+    const container = thumbnailsContainerRef.current
+    const scrollbar = scrollbarRef.current
+    const maxScrollLeft = container.scrollWidth - container.clientWidth
+    if (maxScrollLeft <= 0) return "0px"
+    const scrollRatio = container.scrollLeft / maxScrollLeft
+    const thumbWidth = Number.parseFloat(getThumbWidth()) / 100
+    const maxOffset = scrollbar.clientWidth * (1 - thumbWidth)
+    return `${scrollRatio * maxOffset}px`
+  }
+
+  // Scrollbar mouse down handler
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!thumbnailsContainerRef.current || !scrollbarRef.current) return
+
+    // If clicked on the thumb, start dragging
+    if (e.target === thumbRef.current) {
+      setIsDragging(true)
+      setStartX(e.clientX)
+      setScrollLeft(thumbnailsContainerRef.current.scrollLeft)
+    } else {
+      // If clicked on the track, jump to that position
+      const container = thumbnailsContainerRef.current
+      const scrollbar = scrollbarRef.current
+      const rect = scrollbar.getBoundingClientRect()
+      const clickPosition = (e.clientX - rect.left) / rect.width
+      const scrollPosition = clickPosition * (container.scrollWidth - container.clientWidth)
+
+      // Update the thumb position immediately for visual feedback
+      if (thumbRef.current) {
+        const thumbWidth = Number.parseFloat(getThumbWidth()) / 100
+        const maxOffset = scrollbar.clientWidth * (1 - thumbWidth)
+        const newPosition = clickPosition * maxOffset
+        thumbRef.current.style.transform = `translateX(${newPosition}px)`
+      }
+
+      // Scroll the container
+      container.scrollTo({ left: scrollPosition, behavior: "smooth" })
+    }
+  }
+
+  // Mouse move handler for dragging
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isDragging || !thumbnailsContainerRef.current || !scrollbarRef.current) return
+
+    e.preventDefault()
+    const container = thumbnailsContainerRef.current
+    const scrollbar = scrollbarRef.current
+
+    // Calculate how far the mouse has moved
+    const dx = e.clientX - startX
+
+    // Calculate the ratio between scrollbar width and content width
+    const scrollRatio = container.scrollWidth / scrollbar.clientWidth
+
+    // Calculate the new scroll position
+    const newScrollLeft = scrollLeft + dx * scrollRatio
+
+    // Update the scroll position
+    container.scrollLeft = newScrollLeft
+
+    // Force update to ensure smooth visual feedback
+    requestAnimationFrame(() => {
+      if (thumbRef.current) {
+        thumbRef.current.style.transform = `translateX(${getThumbPosition()})`
+      }
+    })
+  }
+
+  // Mouse up handler to stop dragging
+  const handleMouseUp = () => {
+    setIsDragging(false)
+  }
+
+  // Add event listeners for mouse move and up
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener("mousemove", handleMouseMove)
+      document.addEventListener("mouseup", handleMouseUp)
+    } else {
+      document.removeEventListener("mousemove", handleMouseMove)
+      document.removeEventListener("mouseup", handleMouseUp)
+    }
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove)
+      document.removeEventListener("mouseup", handleMouseUp)
+    }
+  }, [isDragging, startX, scrollLeft])
+
+  // Add this useEffect to update the scrollbar thumb position on initial render and when the content changes
+  useEffect(() => {
+    // Update the thumb position when the component mounts or when uploadedImages changes
+    if (thumbRef.current && thumbnailsContainerRef.current) {
+      thumbRef.current.style.transform = `translateX(${getThumbPosition()})`
+    }
+  }, [uploadedImages, activeImageId])
+
+  // Modify the existing scroll event listener to update the thumb position in real-time
+  useEffect(() => {
+    const handleScroll = () => {
+      // Update the thumb position when the container scrolls
+      if (thumbRef.current) {
+        thumbRef.current.style.transform = `translateX(${getThumbPosition()})`
+      }
+    }
+
+    const container = thumbnailsContainerRef.current
+    if (container) {
+      container.addEventListener("scroll", handleScroll)
+      return () => container.removeEventListener("scroll", handleScroll)
+    }
+  }, [])
+
+  // Update scrollbar position when container scrolls
+  useEffect(() => {
+    const handleScroll = () => {
+      // Force a re-render to update the scrollbar position
+      setUploadedImages((prev) => [...prev])
+    }
+
+    const container = thumbnailsContainerRef.current
+    if (container) {
+      container.addEventListener("scroll", handleScroll)
+      return () => container.removeEventListener("scroll", handleScroll)
+    }
+  }, [])
+
+  // Scroll left/right with buttons
+  const scrollLeft10Percent = () => {
+    if (!thumbnailsContainerRef.current) return
+    const container = thumbnailsContainerRef.current
+    const scrollAmount = container.clientWidth * 0.3
+    container.scrollBy({ left: -scrollAmount, behavior: "smooth" })
+  }
+
+  const scrollRight10Percent = () => {
+    if (!thumbnailsContainerRef.current) return
+    const container = thumbnailsContainerRef.current
+    const scrollAmount = container.clientWidth * 0.3
+    container.scrollBy({ left: scrollAmount, behavior: "smooth" })
+  }
+
+  // Add this useEffect to ensure the scrollbar thumb is positioned correctly on initial render
+  useEffect(() => {
+    const initializeScrollbarThumb = () => {
+      if (thumbRef.current && thumbnailsContainerRef.current && scrollbarRef.current) {
+        // Force the thumb to the correct initial position
+        const position = getThumbPosition()
+        thumbRef.current.style.transform = `translateX(${position})`
+      }
+    }
+
+    // Run immediately
+    initializeScrollbarThumb()
+
+    // Also run after a short delay to ensure DOM is fully rendered
+    const timer1 = setTimeout(initializeScrollbarThumb, 50)
+    const timer2 = setTimeout(initializeScrollbarThumb, 200)
+    const timer3 = setTimeout(initializeScrollbarThumb, 500)
+
+    // Use ResizeObserver to detect when container dimensions change
+    if (thumbnailsContainerRef.current) {
+      const resizeObserver = new ResizeObserver(() => {
+        initializeScrollbarThumb()
+        setForceUpdate((prev) => prev + 1)
+      })
+
+      resizeObserver.observe(thumbnailsContainerRef.current)
+      return () => {
+        resizeObserver.disconnect()
+        clearTimeout(timer1)
+        clearTimeout(timer2)
+        clearTimeout(timer3)
+      }
+    }
+
+    return () => {
+      clearTimeout(timer1)
+      clearTimeout(timer2)
+      clearTimeout(timer3)
+    }
+  }, [uploadedImages.length]) // Run when images are added/removed
+
   // If we're in the initial upload state with no images
   if (uploadedImages.length === 0) {
     return (
@@ -322,7 +541,7 @@ export default function AppPage() {
         </header>
 
         <main className="flex flex-col items-center justify-center flex-1 w-full max-w-6xl mx-auto px-6">
-          <div className="flex flex-col items-center justify-center w-full max-w-xl space-y-12">
+          <div className="flex flex-col items-center justify-center w-full max-w-xl space-y-6">
             <h2 className="text-3xl font-bold text-center">
               Sube una imágen
               <br />
@@ -330,13 +549,24 @@ export default function AppPage() {
             </h2>
 
             <div
-              className={`w-full max-w-lg p-12 rounded-lg ${
-                showErrorMessage ? "bg-[#ffcfcb]" : "bg-[#0f1758]"
-              } flex flex-col items-center justify-center space-y-8 border border-dashed border-white/50`}
+              className={`w-full max-w-lg p-12 rounded-3xl flex flex-col items-center justify-center space-y-8 relative ${
+                showErrorMessage ? "bg-[#ffcfcb]" : "bg-[#1e2b6b]"
+              }`}
+              style={{
+                position: "relative",
+                backgroundImage: `url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='${showErrorMessage ? "%23ffcfcb" : "%231e2b6b"}' rx='24' ry='24'/%3e%3crect width='calc(100%25 - 4px)' height='calc(100%25 - 4px)' stroke='${showErrorMessage ? "%231e2b6b" : "rgba(255, 255, 255, 0.5)"}' strokeWidth='8' strokeDasharray='30, 30' strokeDashoffset='0' strokeLinecap='round' fill='none' x='2' y='2' rx='22' ry='22'/%3e%3c/svg%3e")`,
+                backgroundPosition: "center",
+                backgroundRepeat: "no-repeat",
+                backgroundSize: "100% 100%",
+              }}
             >
               <Button
                 onClick={handleButtonClick}
-                className="bg-[#dbff26] text-black hover:opacity-90 font-medium px-8 py-2 rounded-full"
+                className={`${
+                  showErrorMessage
+                    ? "bg-[#1e2b6b] text-white hover:bg-[#1e2b6b]/90"
+                    : "bg-[#dbff26] text-black hover:bg-[#dbff26]/90"
+                } font-medium px-8 py-2 rounded-full`}
               >
                 Escoger archivo
               </Button>
@@ -350,7 +580,7 @@ export default function AppPage() {
                 multiple
               />
 
-              <p className={`text-sm text-center ${showErrorMessage ? "text-[#0f1758]" : "text-[#dbff26]"}`}>
+              <p className={`text-sm text-center ${showErrorMessage ? "text-[#1e2b6b]" : "text-[#dbff26]"}`}>
                 Solo imágenes menores a 1920x1080
                 <br />
                 píxeles. (.jpg, .jpeg)
@@ -366,31 +596,30 @@ export default function AppPage() {
           </div>
         </main>
 
-        {/* Error Modal */}
+        {/* Error Modal - Redesigned */}
         {showSizeError && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-[#0f1758] border border-[#dbff26] rounded-lg p-8 max-w-md mx-4 relative">
-              <button
-                onClick={handleErrorModalClose}
-                className="absolute top-4 right-4 text-white hover:text-[#dbff26]"
-              >
-                <X className="w-5 h-5" />
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+            <div className="bg-[#0f1758] rounded-3xl max-w-md w-full mx-4 overflow-hidden relative border border-[#dbff26]">
+              {/* Close button */}
+              <button onClick={handleErrorModalClose} className="absolute top-3 right-3 text-white/70 hover:text-white">
+                <X className="w-4 h-4" />
               </button>
 
-              <h2 className="text-2xl font-bold text-center mb-4">¡Ups! La imágen es muy grande</h2>
+              {/* Modal content */}
+              <div className="p-6 pt-10 pb-8 flex flex-col items-center">
+                <h2 className="text-xl font-bold text-center text-white mb-2">¡Ups! La imágen es muy grande</h2>
 
-              <p className="text-center mb-8">
-                La imágen que escogiste tiene una resolución mayor a 1920x1080 píxeles. Haz la imágen más pequeña y
-                subela de nuevo.
-              </p>
+                <p className="text-sm text-center text-white/80 mb-6">
+                  La imágen que escogiste tiene una resolución mayor a 1920x1080 píxeles. Haz la imágen más pequeña y
+                  súbela de nuevo.
+                </p>
 
-              <div className="flex justify-center">
-                <Button
+                <button
                   onClick={handleChangeFileFromModal}
-                  className="bg-[#dbff26] text-black hover:bg-[#dbff26]/90 rounded-full px-6"
+                  className="w-48 bg-[#dbff26] text-black hover:bg-[#dbff26]/90 rounded-full py-2 font-medium text-sm"
                 >
                   Cambiar archivo
-                </Button>
+                </button>
               </div>
             </div>
           </div>
@@ -479,29 +708,56 @@ export default function AppPage() {
 
       <main className="flex flex-col items-center w-full max-w-4xl px-4 py-8">
         {/* Thumbnails row with scrollbar */}
-        <div className="w-full mb-4 relative">
+        <div className="w-full mb-2 relative">
           <div className="flex flex-col w-full">
+            {/* Navigation buttons */}
+            <div className="flex items-center justify-between w-full mb-2">
+              <button
+                onClick={scrollLeft10Percent}
+                className="w-8 h-8 rounded-full bg-[#0f1758] flex items-center justify-center hover:bg-[#0f1758]/80"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+
+              {/* Image counter */}
+              <div className="text-xs text-[#b6b2ed]">
+                {uploadedImages.length}/{MAX_IMAGES} imágenes
+              </div>
+
+              <button
+                onClick={scrollRight10Percent}
+                className="w-8 h-8 rounded-full bg-[#0f1758] flex items-center justify-center hover:bg-[#0f1758]/80"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+
             {/* Thumbnails container */}
             <div
-              className="flex items-center gap-2 overflow-x-auto pb-2 max-w-full scrollbar-hide relative"
+              className="flex items-center overflow-x-auto pb-2 max-w-full scrollbar-hide relative"
               ref={thumbnailsContainerRef}
+              onWheel={handleWheel}
             >
               {/* Add button - in line with thumbnails */}
               <button
                 onClick={handleAddNew}
-                className="flex-shrink-0 w-12 h-12 rounded-full bg-[#dbff26] flex items-center justify-center"
+                className="flex-shrink-0 w-12 h-12 rounded-full bg-[#dbff26] flex items-center justify-center mr-3"
               >
                 <Plus className="w-6 h-6 text-black" />
               </button>
 
-              {uploadedImages.map((image) => (
+              {uploadedImages.map((image, index) => (
                 <button
                   key={image.id}
                   ref={activeImageId === image.id ? activeThumbRef : null}
                   onClick={() => handleSelectImage(image.id)}
-                  className={`flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 ${
-                    activeImageId === image.id ? "border-[#dbff26]" : "border-white/30"
-                  } relative`}
+                  className={`flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden ${
+                    index === 0 && !image.url
+                      ? ""
+                      : activeImageId === image.id
+                        ? "border-2 border-[#dbff26]"
+                        : "border-2 border-white/30"
+                  } ${index > 0 ? "ml-1" : ""} relative`}
                 >
                   <img src={image.url || "/placeholder.svg"} alt="Thumbnail" className="w-full h-full object-cover" />
                   {image.isProcessing && (
@@ -513,20 +769,29 @@ export default function AppPage() {
               ))}
             </div>
 
-            {/* Simple scrollbar */}
-            <div className="w-full h-1 bg-white/50 mt-2 rounded-full"></div>
-          </div>
-
-          {/* Image counter */}
-          <div className="absolute top-0 right-0 -mt-6 text-xs text-[#b6b2ed]">
-            {uploadedImages.length}/{MAX_IMAGES} imágenes
+            {/* Custom scrollbar - new implementation */}
+            <div
+              ref={scrollbarRef}
+              className="w-full h-2 bg-white/20 mt-2 rounded-full relative cursor-pointer"
+              onMouseDown={handleMouseDown}
+            >
+              <div
+                ref={thumbRef}
+                className={`absolute top-0 h-full bg-gray-400 rounded-full cursor-grab ${isDragging ? "cursor-grabbing" : ""}`}
+                style={{
+                  width: getThumbWidth(),
+                  left: "0px",
+                  transform: `translateX(${getThumbPosition()})`,
+                }}
+              />
+            </div>
           </div>
         </div>
 
         {/* Main image display */}
         {activeImage && (
           <>
-            <div className="w-full max-w-3xl rounded-lg overflow-hidden mb-8 mt-4">
+            <div className="w-full max-w-3xl rounded-lg overflow-hidden mb-3 mt-1">
               <img
                 src={activeImage.url || "/placeholder.svg"}
                 alt="Uploaded image"
@@ -535,17 +800,17 @@ export default function AppPage() {
               />
             </div>
 
-            <div className="w-full max-w-3xl flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-3 bg-[#0f1758]/80 px-6 py-3 rounded-full border border-[#0f1758]/50">
+            <div className="w-full max-w-3xl flex flex-col md:flex-row items-center justify-between gap-2">
+              <div className="flex items-center justify-between bg-[#1a2675] px-6 py-4 rounded-3xl w-full md:w-auto">
+                <div className="flex flex-col">
+                  <p className="text-base font-medium text-white">Ver imágen escalada</p>
+                  <p className="text-sm text-white/80">Las imágenes se escalan a 2x.</p>
+                </div>
                 <Switch
                   checked={showScaled}
                   onCheckedChange={setShowScaled}
-                  className="data-[state=checked]:bg-[#dbff26]"
+                  className="data-[state=checked]:bg-[#dbff26] ml-4"
                 />
-                <div>
-                  <p className="text-sm font-medium">Ver imágen escalada</p>
-                  <p className="text-xs text-[#b6b2ed]">Las imágenes se escalan a 2x.</p>
-                </div>
               </div>
 
               <div className="flex items-center gap-4">
@@ -603,36 +868,44 @@ export default function AppPage() {
         <input
           type="file"
           ref={changeImageInputRef}
+          onChange={handleFileChange}
+          accept=".jpg,.jpeg,.png"
+          className="hidden"
+          multiple
+        />
+
+        <input
+          type="file"
+          ref={changeImageInputRef}
           onChange={handleChangeImageInput}
           accept=".jpg,.jpeg,.png"
           className="hidden"
         />
 
-        {/* Error Modal */}
+        {/* Error Modal - Redesigned */}
         {showSizeError && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-[#0f1758] border border-[#dbff26] rounded-lg p-8 max-w-md mx-4 relative">
-              <button
-                onClick={handleErrorModalClose}
-                className="absolute top-4 right-4 text-white hover:text-[#dbff26]"
-              >
-                <X className="w-5 h-5" />
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+            <div className="bg-[#0f1758] rounded-3xl max-w-md w-full mx-4 overflow-hidden relative border border-[#dbff26]">
+              {/* Close button */}
+              <button onClick={handleErrorModalClose} className="absolute top-3 right-3 text-white/70 hover:text-white">
+                <X className="w-4 h-4" />
               </button>
 
-              <h2 className="text-2xl font-bold text-center mb-4">¡Ups! La imágen es muy grande</h2>
+              {/* Modal content */}
+              <div className="p-6 pt-10 pb-8 flex flex-col items-center">
+                <h2 className="text-xl font-bold text-center text-white mb-2">¡Ups! La imágen es muy grande</h2>
 
-              <p className="text-center mb-8">
-                La imágen que escogiste tiene una resolución mayor a 1920x1080 píxeles. Haz la imágen más pequeña y
-                subela de nuevo.
-              </p>
+                <p className="text-sm text-center text-white/80 mb-6">
+                  La imágen que escogiste tiene una resolución mayor a 1920x1080 píxeles. Haz la imágen más pequeña y
+                  súbela de nuevo.
+                </p>
 
-              <div className="flex justify-center">
-                <Button
+                <button
                   onClick={handleChangeFileFromModal}
-                  className="bg-[#dbff26] text-black hover:bg-[#dbff26]/90 rounded-full px-6"
+                  className="w-48 bg-[#dbff26] text-black hover:bg-[#dbff26]/90 rounded-full py-2 font-medium text-sm"
                 >
                   Cambiar archivo
-                </Button>
+                </button>
               </div>
             </div>
           </div>
